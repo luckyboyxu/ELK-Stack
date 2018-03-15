@@ -1,0 +1,58 @@
+Logstash安装配置
+Logstash主要用于数据的转换和中转，然后把格式化后的数据写入ES
+日志处理模式：
+Data Source  -->  INPUTS  -->  FILTERS  -->  OUTPUTS  -->  ES
+1、解压并安装
+# tar -xvf logstash-6.1.3.tar.gz -C /opt
+# tar -xvf jdk-8u161-linux-x64.tar.gz -C /opt
+# cd /opt
+# ln -s logstash-6.1.3 logstash
+# ln -s jdk-8u161-linux-x64 jdk
+# chown dji.dji logstash-6.1.3 -R
+2、用户环境配置
+# vim ~/.bashrc
+  export JAVA_HOME=/opt/jdk
+# source ~/.bashrc
+# vim /etc/hosts
+  10.13.2.76 es01
+  10.13.2.77 es02
+  10.13.2.78 es03
+3、配置文件piplines.conf
+  input {
+    if [@metadata][beat] == "packetbeat" {
+      beats {
+        port => 5044
+      }
+    }
+    if [@metadata][beat] == "filebeat" {
+      beats {
+        port => 5043
+      }
+    }
+  }
+  filter {
+    if [@metadata][beat] == "filebeat" {
+      grok {
+          patterns_dir => ["./patterns"]
+          match => { "message" => "%{NETDEV}" }
+      }
+    }
+  }
+  output {
+    elasticsearch {
+      hosts => ["http://es01:9200", "http://es02:9200",
+      "http://es03:9200"]
+      index => "%{[@metadata][beat]}-%{[@metadata][version]}-%{+YYYY.MM.dd}"
+      user => "logstash_user"
+      password => "1qaz@WSX"
+    }
+  }
+4、patterns 扩展
+日志匹配分组，最终按此格式转换为JSON格式
+# vim patterns/extra-pattern
+  # contents of netdev
+  NETDEV %{TIMESTAMP_ISO8601:report_time} %{IP:logsource} %{WORD:severity} %{WORD:facility}(?:[0-9])? (?:%{NUMBER}:
+  |\*)?%{SYSLOGTIMESTAMP:trigger_time}(?:\s|:\s)?%{GREEDYDATA:log_detai
+  l}
+5、启动
+  $ bin/logstash -f piplines.conf
