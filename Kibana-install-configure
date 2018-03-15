@@ -1,0 +1,20 @@
+环境：
+centos   Oracle JDK8 或 Openjdk-8
+--------------------------------------------------------------------------
+Kibana安装配置:
+kibana自包含了所有软件运行需要的软件，所以不需要下载其他依赖软件
+1、解压安装
+# tar -xvf kibana-6.1.3-linux-x86_64.tar.gz -C /opt
+# chown dji.dji kibana-6.1.3-linux-x86_64 -R
+# ln -s kibana-6.1.3-linux-x86_64 kibana
+2、系统配置
+# vim /etc/hosts
+  10.13.2.76 es01
+  10.13.2.77 es02
+  10.13.2.78 es03
+3、配置Kibana.yml
+  server.host: "0.0.0.0" #
+  elasticsearch.url: "http://es01:9200" # 连接ES其中一个，可以接入负载均衡高可用方案
+  nodeES Cluster,7.0
+4、启动
+# ./bin/kibana -d
