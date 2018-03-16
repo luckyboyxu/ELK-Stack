@@ -1,0 +1,88 @@
+{
+  "trigger": {	//触发器
+    "schedule": {
+      "interval": "5m"     //每五分钟检测触发
+    }
+  },
+  "input": {   //数据输入
+    "search": {
+      "request": {
+        "search_type": "query_then_fetch",    //查询类型
+        "indices": [
+          "packetbeat-*"
+        ],	            //查询的索引
+        "types": [],
+        "body": {
+          "size": 0,
+          "query": {	//查询条件语句，查询字段type=dns的数据
+            "bool": {
+              "must": {
+                "term": {
+                  "type": "dns"
+                }
+              },
+              "filter": {  //过滤器，该例子表示时间范围5分钟内的数据
+                "range": {
+                  "@timestamp": {
+                    "gte": "now-5m",
+                    "lte": "now"
+                  }
+                }
+              }
+            }
+          },
+          "aggs": {       //聚合功能
+            "groupby_ip": {	//名称
+              "terms": {
+                "field": "ip",
+                "size": 10,
+                "order": {
+                  "max_responsetime": "desc"
+                }
+              },
+              "aggs": {
+                "max_responsetime": {
+                  "max": {   //max函数功能，统计最大值
+                    "field": "responsetime"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "condition": {
+    "array_compare": {	//数组比较
+      "ctx.payload.aggregations.groupby_ip.buckets": {  //数组路径
+        "path": "max_responsetime.value",	//字段路径
+        "gte": {      //比较
+          "value": 1000000,
+          "quantifier": "some"  //some表示至少有一条数据符合条件，all表示所有数据符合条件
+        }
+      }
+    }
+  },
+  "actions": {  //动作，发邮件
+    "send_email": {
+      "email": {
+        "profile": "standard",
+        "attachments": {  //附件
+          "top10_attached_data": {
+            "data": {
+              "format": "json"
+            }
+          }
+        },
+        "to": [
+          "hai.lee@xxx.com, peter.xu@xxx.com"
+        ],
+        "subject": "DNS响应耗时过长",
+        "body": {
+          "text": "[服务器IP]          [响应耗时] \n{{ ctx.payload.aggregations.groupby_ip.buckets.0.key }}          {{ ctx.payload.aggregations.groupby_ip.buckets.0.max_responsetime.value }}μs\n{{ ctx.payload.aggregations.groupby_ip.buckets.1.key }}          {{ ctx.payload.aggregations.groupby_ip.buckets.1.max_responsetime.value }}μs"
+        }
+      }
+    }
+  }
+}
